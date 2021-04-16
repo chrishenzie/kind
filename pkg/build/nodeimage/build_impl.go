@@ -267,6 +267,10 @@ func (c *buildContext) prePullImages(bits kube.Bits, dir, containerID string) ([
 	for i, image := range requiredImages {
 		i, image := i, image // https://golang.org/doc/faq#closures_and_goroutines
 		fns = append(fns, func() error {
+			// Because it requires the scheduler image but it's not available when using a custom version.
+			// if strings.HasPrefix(image, "k8s.gcr.io/kube-scheduler") {
+			// return nil
+			// }
 			if !builtImages.Has(image) {
 				fmt.Printf("Pulling: %s\n", image)
 				err := docker.Pull(c.logger, image, 2)

@@ -17,6 +17,7 @@ limitations under the License.
 package kube
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,6 +73,7 @@ func (b *dockerBuilder) Build() (Bits, error) {
 	}
 
 	kubeVersion, err := version.ParseSemantic(sourceVersionRaw)
+	// _, err = version.ParseSemantic(sourceVersionRaw)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse source version")
 	}
@@ -79,6 +81,7 @@ func (b *dockerBuilder) Build() (Bits, error) {
 	// we will pass through the environment variables, prepending defaults
 	// NOTE: if env are specified multiple times the last one wins
 	env := append(
+		// _ = append(
 		[]string{
 			// ensure the build isn't especially noisy..
 			"KUBE_VERBOSE=0",
@@ -92,10 +95,37 @@ func (b *dockerBuilder) Build() (Bits, error) {
 	)
 	// binaries we want to build
 	what := []string{
+		// _ = []string{
 		// binaries we use directly
 		"cmd/kubeadm",
 		"cmd/kubectl",
 		"cmd/kubelet",
+	}
+
+	binDir := filepath.Join(b.kubeRoot,
+		"_output", "dockerized", "bin", "linux", b.arch,
+	)
+	imageDir := filepath.Join(b.kubeRoot,
+		"_output", "release-images", b.arch,
+	)
+
+	// enforce first to save time
+	kubeletPath := os.Getenv("KUBELET_PATH")
+	if kubeletPath != "" {
+		if _, err := os.Stat(kubeletPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("KUBELET_PATH=%s does not point to a file", kubeletPath)
+		}
+	} else {
+		kubeletPath = filepath.Join(binDir, "kubelet")
+	}
+
+	schedulerPath := os.Getenv("SCHEDULER_PATH")
+	if schedulerPath != "" {
+		if _, err := os.Stat(schedulerPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("SCHEDULER_PATH=%s does not point to a file", schedulerPath)
+		}
+	} else {
+		schedulerPath = filepath.Join(imageDir, "kube-scheduler.tar")
 	}
 
 	// build images + binaries (binaries only on 1.21+)
@@ -119,23 +149,16 @@ func (b *dockerBuilder) Build() (Bits, error) {
 		}
 	}
 
-	binDir := filepath.Join(b.kubeRoot,
-		"_output", "dockerized", "bin", "linux", b.arch,
-	)
-	imageDir := filepath.Join(b.kubeRoot,
-		"_output", "release-images", b.arch,
-	)
-
 	return &bits{
 		binaryPaths: []string{
 			filepath.Join(binDir, "kubeadm"),
-			filepath.Join(binDir, "kubelet"),
+			kubeletPath,
 			filepath.Join(binDir, "kubectl"),
 		},
 		imagePaths: []string{
 			filepath.Join(imageDir, "kube-apiserver.tar"),
 			filepath.Join(imageDir, "kube-controller-manager.tar"),
-			filepath.Join(imageDir, "kube-scheduler.tar"),
+			schedulerPath,
 			filepath.Join(imageDir, "kube-proxy.tar"),
 		},
 		version: sourceVersionRaw,
